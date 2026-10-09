@@ -1,0 +1,5 @@
+Model,Accuracy,Precision,Recall,F1
+Always predict no,0.885,0.0,0.0,0.0
+Decision Tree (original),0.817,0.25,0.298,0.272
+"Decision Tree (pruned, balanced)",0.764,0.228,0.442,0.301
+Random Forest (balanced),0.841,0.315,0.327,0.321
