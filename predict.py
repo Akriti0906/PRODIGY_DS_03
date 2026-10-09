@@ -3,12 +3,19 @@
 # is worth calling about a term deposit.
 #
 # Run train_model.py first (it creates model.joblib).
-#   python predict.py          -> asks you for a customer's details
-#   python predict.py demo     -> runs 3 sample customers
+#   python predict.py                         -> asks you for a customer's details
+#   python predict.py demo                    -> runs 3 sample customers
+#   python predict.py rank customers.csv      -> ranks a whole file of customers
+#                                                (same columns as bank.csv, ; separated)
 
+import os
 import sys
 import joblib
 import pandas as pd
+
+if not os.path.exists("model.joblib"):
+    print("model.joblib not found. Run 'python train_model.py' first to create it.")
+    sys.exit(1)
 
 saved = joblib.load("model.joblib")
 model = saved["model"]
@@ -118,7 +125,42 @@ def run_interactive():
     show_result(prediction, score)
 
 
+def run_rank(filename):
+    """Score every customer in a file and list them from most to least likely."""
+    if not os.path.exists(filename):
+        print(f"File '{filename}' not found.")
+        sys.exit(1)
+    customers = pd.read_csv(filename, sep=";")
+    missing = [c for c in features if c not in customers.columns]
+    if missing:
+        print("The file is missing these columns:", ", ".join(missing))
+        sys.exit(1)
+
+    X = customers[features].copy()
+    for column in encoders:
+        if column in X.columns:
+            unknown = set(X[column]) - set(encoders[column].classes_)
+            if unknown:
+                print(f"Column '{column}' has values the model has not seen: {sorted(unknown)}")
+                sys.exit(1)
+            X[column] = encoders[column].transform(X[column])
+
+    customers["score"] = model.predict_proba(X)[:, 1].round(3)
+    customers["decision"] = ["CALL" if p == 1 else "SKIP" for p in model.predict(X)]
+    ranked = customers.sort_values("score", ascending=False)   # best leads first
+    ranked.to_csv("ranked_customers.csv", index=False, sep=";")
+
+    print(f"Scored {len(ranked)} customers. Customers marked CALL: "
+          f"{(ranked['decision'] == 'CALL').sum()}")
+    print("\nTop 10 customers to call first:")
+    print(ranked[["age", "job", "poutcome", "score", "decision"]].head(10).to_string())
+    print("\nFull ranked list saved as ranked_customers.csv")
+    print("Note: many customers share the same score because a tree groups them into a few types.")
+
+
 if len(sys.argv) > 1 and sys.argv[1] == "demo":
     run_demo()
+elif len(sys.argv) > 2 and sys.argv[1] == "rank":
+    run_rank(sys.argv[2])
 else:
     run_interactive()

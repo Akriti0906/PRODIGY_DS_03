@@ -1,0 +1,4 @@
+Strategy,Calls,Subscribers,Profit (euros)
+Call nobody,0,0,0
+Call everyone,905,104,1715
+Call only customers the model flags,202,46,1750

@@ -22,6 +22,11 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                              f1_score, confusion_matrix)
 
 COLOR = "#3B6EA5"                          # one colour for all single-series charts
+
+# ASSUMED business numbers for the cost/benefit step (section 6b).
+# These are NOT from the dataset - change them to see how the result changes.
+COST_PER_CALL = 5                          # euros: staff time for one phone call
+PROFIT_PER_DEPOSIT = 60                    # euros: profit if the customer subscribes
 os.makedirs("outputs", exist_ok=True)      # all charts and tables go in this folder
 
 # ---------------------------------------------------------------
@@ -168,6 +173,33 @@ print(f"The model flags {flagged_share:.1%} of customers as worth calling.")
 print(f"Of those flagged, {precision_score(y_test, tree_pred):.1%} subscribe, "
       f"compared with {yes_share:.1%} when calling customers at random.")
 print(f"It finds {recall_score(y_test, tree_pred):.1%} of all customers who would subscribe.")
+
+# ---------------------------------------------------------------
+# 6b. COST / BENEFIT: is calling only the flagged customers cheaper?
+# ---------------------------------------------------------------
+# profit = (customers who subscribe x profit per deposit) - (calls x cost per call)
+def campaign_profit(called):
+    called = pd.Series(called, index=y_test.index).astype(bool)
+    calls = int(called.sum())
+    subscribers = int(y_test[called].sum())
+    profit = subscribers * PROFIT_PER_DEPOSIT - calls * COST_PER_CALL
+    return calls, subscribers, profit
+
+print(f"\nCost/benefit on the test set (assumed: call = {COST_PER_CALL} euros, "
+      f"deposit = {PROFIT_PER_DEPOSIT} euros profit):")
+strategies = {
+    "Call nobody": [False] * len(y_test),
+    "Call everyone": [True] * len(y_test),
+    "Call only customers the model flags": tree_pred == 1,
+}
+cost_rows = []
+for name, called in strategies.items():
+    calls, subscribers, profit = campaign_profit(called)
+    print(f"   {name:36s} calls={calls:4d}  subscribers={subscribers:3d}  profit={profit:6d} euros")
+    cost_rows.append([name, calls, subscribers, profit])
+pd.DataFrame(cost_rows, columns=["Strategy", "Calls", "Subscribers", "Profit (euros)"]
+             ).to_csv("outputs/cost_benefit.csv", index=False)
+print("(The euro values are assumptions - the call counts and subscribers are real test results.)")
 
 # Model 3: Random Forest (many trees voting together), for comparison
 forest = RandomForestClassifier(n_estimators=100, max_depth=8,
